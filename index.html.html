@@ -76,7 +76,7 @@
 
         textarea {
             resize: vertical;
-            height: 80px;
+            height: 70px;
         }
 
         .row {
@@ -115,14 +115,29 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 300px;
+            min-height: 280px;
             background: repeating-conic-gradient(#e2e8f0 0% 25%, transparent 0% 50%);
             background-size: 20px 20px;
             border-radius: 8px;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
             border: 1px solid var(--border-color);
             overflow: hidden;
             padding: 10px;
+        }
+
+        /* Varovná hláška pod náhledem */
+        .warning-box {
+            background-color: #fef3c7;
+            border: 1px solid #f59e0b;
+            color: #92400e;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .warning-box.active {
+            display: block;
         }
 
         .btn-group {
@@ -185,6 +200,12 @@
         .file-fake-btn:hover {
             background: #cbd5e1;
         }
+
+        hr {
+            border: 0;
+            border-top: 1px solid #e2e8f0;
+            margin: 20px 0;
+        }
     </style>
 </head>
 <body>
@@ -236,11 +257,43 @@
             </div>
         </div>
 
+        <!-- VOLBA KOREKCE CHYB (HUSTOTA) -->
         <div class="form-group">
-            <label for="logo-file">Logo uprostřed (volitelné)</label>
+            <label for="error-correction">Korekce chyb (Hustota / Odolnost)</label>
+            <select id="error-correction">
+                <option value="L">Nízká (L - 7%) – nejřidší kód</option>
+                <option value="M" selected>Střední (M - 15%) – doporučeno</option>
+                <option value="Q">Vysoká (Q - 25%)</option>
+                <option value="H">Maximální (H - 30%) – pro velké logo</option>
+            </select>
+        </div>
+
+        <hr>
+
+        <!-- VOLBA LOGA JAKO OBRÁZEK -->
+        <div class="form-group">
+            <label for="logo-file">Logo – obrázek (volitelné)</label>
             <div class="file-input-wrapper">
                 <span class="file-fake-btn" id="logo-label">Vybrat obrázek loga...</span>
                 <input type="file" id="logo-file" accept="image/*">
+            </div>
+        </div>
+
+        <!-- VOLBA LOGA JAKO TEXT -->
+        <div class="form-group">
+            <label for="logo-text-input">Nebo logo – text (např. ABC)</label>
+            <input type="text" id="logo-text-input" placeholder="Zadej text do středu...">
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="text-color">Barva textu</label>
+                <input type="color" id="text-color" value="#4f46e5">
+            </div>
+            <div class="form-group" style="display: flex; align-items: flex-end;">
+                <label class="checkbox-group" style="padding-bottom: 8px;">
+                    <input type="checkbox" id="text-bg-white" checked> Bílé pozadí pod textem
+                </label>
             </div>
         </div>
     </div>
@@ -250,6 +303,10 @@
         <div>
             <h1>Živý náhled</h1>
             <div id="canvas-container"></div>
+            <!-- Varování pro uživatele -->
+            <div id="warning-box" class="warning-box">
+                ⚠️ <strong>Pozor:</strong> Zadaný text je příliš dlouhý a kód může být hůře čitelný (příliš mnoho čtverečků). Doporučujeme URL adresu zkrátit.
+            </div>
         </div>
 
         <div class="btn-group">
@@ -276,20 +333,58 @@
         cornersSquareOptions: {
             type: "square"
         },
+        qrOptions: {
+            errorCorrectionLevel: "M"
+        },
         imageOptions: {
             crossOrigin: "anonymous",
-            margin: 5
+            margin: 8,
+            imageSize: 0.4
         }
     });
 
-    // Vykreslení do kontejrenu po načtení stránky
     const canvasContainer = document.getElementById("canvas-container");
     qrCode.append(canvasContainer);
 
-    // Proměnná pro uložení načteného loga
-    let logoDataUrl = null;
+    let activeImageLogo = null;
+    let textLogoDataUrl = null;
 
-    // Funkce pro aktualizaci QR kódu
+    function generateTextLogoImage() {
+        const text = document.getElementById("logo-text-input").value;
+        if (!text.trim()) {
+            textLogoDataUrl = null;
+            updateQRCode();
+            return;
+        }
+
+        const textColor = document.getElementById("text-color").value;
+        const addWhiteBg = document.getElementById("text-bg-white").checked;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = 200;
+        canvas.height = 200;
+        const ctx = canvas.getContext("2d");
+
+        if (addWhiteBg) {
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.roundRect(10, 10, 180, 180, 40);
+            ctx.fill();
+            ctx.lineWidth = 8;
+            ctx.strokeStyle = "#e2e8f0";
+            ctx.stroke();
+        }
+
+        ctx.fillStyle = textColor;
+        ctx.font = "bold 42px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, 100, 100);
+
+        textLogoDataUrl = canvas.toDataURL("image/png");
+        updateQRCode();
+    }
+
     function updateQRCode() {
         const text = document.getElementById("qr-text").value || " ";
         const dotColor = document.getElementById("dot-color").value;
@@ -297,6 +392,17 @@
         const isTransparent = document.getElementById("transparent-bg").checked;
         const dotStyle = document.getElementById("dot-style").value;
         const cornerStyle = document.getElementById("corner-style").value;
+        const errorCorrection = document.getElementById("error-correction").value;
+
+        // Kontrola délky textu a zobrazení varování
+        const warningBox = document.getElementById("warning-box");
+        if (text.length > 100) {
+            warningBox.classList.add("active");
+        } else {
+            warningBox.classList.remove("active");
+        }
+
+        const currentLogo = activeImageLogo || textLogoDataUrl;
 
         qrCode.update({
             data: text,
@@ -310,11 +416,14 @@
             cornersSquareOptions: {
                 type: cornerStyle
             },
-            image: logoDataUrl
+            qrOptions: {
+                errorCorrectionLevel: errorCorrection
+            },
+            image: currentLogo
         });
     }
 
-    // Posluchače událostí pro změny ve formuláři
+    // Posluchače událostí
     document.getElementById("qr-text").addEventListener("input", updateQRCode);
     document.getElementById("dot-color").addEventListener("input", updateQRCode);
     document.getElementById("bg-color").addEventListener("input", updateQRCode);
@@ -324,26 +433,35 @@
     });
     document.getElementById("dot-style").addEventListener("change", updateQRCode);
     document.getElementById("corner-style").addEventListener("change", updateQRCode);
+    document.getElementById("error-correction").addEventListener("change", updateQRCode);
 
-    // Zpracování nahrání loga
+    // Textové logo posluchači
+    document.getElementById("logo-text-input").addEventListener("input", generateTextLogoImage);
+    document.getElementById("text-color").addEventListener("input", generateTextLogoImage);
+    document.getElementById("text-bg-white").addEventListener("change", generateTextLogoImage);
+
+    // Nahrání obrázku loga
     document.getElementById("logo-file").addEventListener("change", function(e) {
         const file = e.target.files[0];
         if (file) {
             document.getElementById("logo-label").innerText = file.name;
+            document.getElementById("logo-text-input").value = "";
+            textLogoDataUrl = null;
+
             const reader = new FileReader();
             reader.onload = function(event) {
-                logoDataUrl = event.target.result;
+                activeImageLogo = event.target.result;
                 updateQRCode();
             };
             reader.readAsDataURL(file);
         } else {
             document.getElementById("logo-label").innerText = "Vybrat obrázek loga...";
-            logoDataUrl = null;
+            activeImageLogo = null;
             updateQRCode();
         }
     });
 
-    // Tlačítka pro stažení
+    // Stažení souborů
     document.getElementById("download-png").addEventListener("click", () => {
         qrCode.download({ name: "qr-kod", extension: "png" });
     });
