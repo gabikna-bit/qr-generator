@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Studio – Pokročilý generátor</title>
+    <!-- Načtení knihovny pro stylované QR kódy -->
+    <script src="https://unpkg.com/qr-code-styling@1.5.0/lib/qr-code-styling.js"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #1e293b;
+            --border-color: #cbd5e1;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1100px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 850px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: var(--primary);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.875rem;
+            margin-bottom: 6px;
+        }
+
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            box-sizing: border-box;
+        }
+
+        textarea {
+            resize: vertical;
+            height: 80px;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .row .form-group {
+            flex: 1;
+        }
+
+        input[type="color"] {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            height: 40px;
+            width: 100%;
+            cursor: pointer;
+            background: none;
+            padding: 2px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: normal;
+        }
+
+        .checkbox-group input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        #canvas-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 300px;
+            background: repeating-conic-gradient(#e2e8f0 0% 25%, transparent 0% 50%);
+            background-size: 20px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            padding: 10px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            flex: 1;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button.secondary {
+            background-color: #64748b;
+        }
+
+        button.secondary:hover {
+            background-color: #475569;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-fake-btn {
+            display: block;
+            background: #e2e8f0;
+            color: #334155;
+            padding: 10px;
+            text-align: center;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        
+        .file-fake-btn:hover {
+            background: #cbd5e1;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Levý panel: Nastavení -->
+    <div class="card">
+        <h1>Nastavení QR kódu</h1>
+        
+        <div class="form-group">
+            <label for="qr-text">URL adresa nebo text</label>
+            <textarea id="qr-text" placeholder="https://example.com">https://example.com</textarea>
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="dot-color">Barva teček</label>
+                <input type="color" id="dot-color" value="#1e293b">
+            </div>
+            <div class="form-group">
+                <label for="bg-color">Barva pozadí</label>
+                <input type="color" id="bg-color" value="#ffffff">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="checkbox-group">
+                <input type="checkbox" id="transparent-bg"> Průhledné pozadí
+            </label>
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="dot-style">Tvar teček</label>
+                <select id="dot-style">
+                    <option value="square">Čtverce</option>
+                    <option value="dots">Kuličky</option>
+                    <option value="rounded">Zaoblené</option>
+                    <option value="classy">Elegantní</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="corner-style">Tvar rohů</label>
+                <select id="corner-style">
+                    <option value="square">Hranaté</option>
+                    <option value="dot">Kulaté</option>
+                    <option value="extra-rounded">Silně zaoblené</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="logo-file">Logo uprostřed (volitelné)</label>
+            <div class="file-input-wrapper">
+                <span class="file-fake-btn" id="logo-label">Vybrat obrázek loga...</span>
+                <input type="file" id="logo-file" accept="image/*">
+            </div>
+        </div>
+    </div>
+
+    <!-- Pravý panel: Náhled a export -->
+    <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+            <h1>Živý náhled</h1>
+            <div id="canvas-container"></div>
+        </div>
+
+        <div class="btn-group">
+            <button id="download-png">Stáhnout PNG</button>
+            <button id="download-svg" class="secondary">Stáhnout SVG</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Inicializace QR kódu s výchozími hodnotami
+    const qrCode = new QRCodeStyling({
+        width: 300,
+        height: 300,
+        type: "svg",
+        data: "https://example.com",
+        dotsOptions: {
+            color: "#1e293b",
+            type: "square"
+        },
+        backgroundOptions: {
+            color: "#ffffff",
+        },
+        cornersSquareOptions: {
+            type: "square"
+        },
+        imageOptions: {
+            crossOrigin: "anonymous",
+            margin: 5
+        }
+    });
+
+    // Vykreslení do kontejrenu po načtení stránky
+    const canvasContainer = document.getElementById("canvas-container");
+    qrCode.append(canvasContainer);
+
+    // Proměnná pro uložení načteného loga
+    let logoDataUrl = null;
+
+    // Funkce pro aktualizaci QR kódu
+    function updateQRCode() {
+        const text = document.getElementById("qr-text").value || " ";
+        const dotColor = document.getElementById("dot-color").value;
+        const bgColor = document.getElementById("bg-color").value;
+        const isTransparent = document.getElementById("transparent-bg").checked;
+        const dotStyle = document.getElementById("dot-style").value;
+        const cornerStyle = document.getElementById("corner-style").value;
+
+        qrCode.update({
+            data: text,
+            dotsOptions: {
+                color: dotColor,
+                type: dotStyle
+            },
+            backgroundOptions: {
+                color: isTransparent ? "transparent" : bgColor
+            },
+            cornersSquareOptions: {
+                type: cornerStyle
+            },
+            image: logoDataUrl
+        });
+    }
+
+    // Posluchače událostí pro změny ve formuláři
+    document.getElementById("qr-text").addEventListener("input", updateQRCode);
+    document.getElementById("dot-color").addEventListener("input", updateQRCode);
+    document.getElementById("bg-color").addEventListener("input", updateQRCode);
+    document.getElementById("transparent-bg").addEventListener("change", (e) => {
+        document.getElementById("bg-color").disabled = e.target.checked;
+        updateQRCode();
+    });
+    document.getElementById("dot-style").addEventListener("change", updateQRCode);
+    document.getElementById("corner-style").addEventListener("change", updateQRCode);
+
+    // Zpracování nahrání loga
+    document.getElementById("logo-file").addEventListener("change", function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            document.getElementById("logo-label").innerText = file.name;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                logoDataUrl = event.target.result;
+                updateQRCode();
+            };
+            reader.readAsDataURL(file);
+        } else {
+            document.getElementById("logo-label").innerText = "Vybrat obrázek loga...";
+            logoDataUrl = null;
+            updateQRCode();
+        }
+    });
+
+    // Tlačítka pro stažení
+    document.getElementById("download-png").addEventListener("click", () => {
+        qrCode.download({ name: "qr-kod", extension: "png" });
+    });
+
+    document.getElementById("download-svg").addEventListener("click", () => {
+        qrCode.download({ name: "qr-kod", extension: "svg" });
+    });
+</script>
+
+</body>
+</html>
